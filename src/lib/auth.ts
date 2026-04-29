@@ -5,6 +5,7 @@ import DiscordProvider from "next-auth/providers/discord";
 import { prisma } from "./prisma";
 
 export const authOptions: NextAuthOptions = {
+  secret: process.env.NEXTAUTH_SECRET,
   adapter: PrismaAdapter(prisma) as any,
   providers: [
     GoogleProvider({
@@ -32,7 +33,7 @@ export const authOptions: NextAuthOptions = {
       }
       return session;
     },
-    async signIn({ user, account }) {
+    async signIn({ user }) {
       // Auto-generate username from name/email on first sign-in
       if (!user.id) return true;
       const existing = await prisma.user.findUnique({ where: { id: user.id } });
