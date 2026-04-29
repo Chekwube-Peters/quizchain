@@ -14,7 +14,6 @@ import {
   ArrowRight,
   Check,
   Loader2,
-  Settings,
   DollarSign,
   Users,
   Clock,
@@ -51,10 +50,8 @@ export default function CreatePage() {
   const [difficulty, setDifficulty] = useState<Difficulty>("MEDIUM");
   const [questionCount, setQuestionCount] = useState<10 | 20 | 50>(10);
   const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
   const [timeLimit, setTimeLimit] = useState(30);
   const [maxPlayers, setMaxPlayers] = useState(100);
-  const [entryFee, setEntryFee] = useState("");
   const [prizePool, setPrizePool] = useState("");
   const [prizeType, setPrizeType] = useState<PrizeType>("NONE");
   const [prizeCurrency, setPrizeCurrency] = useState("RBTC");
@@ -121,10 +118,8 @@ export default function CreatePage() {
         difficulty,
         questionCount,
         title: title || `${category} Quiz — ${difficulty}`,
-        description,
         timeLimit,
         maxPlayers,
-        entryFee: entryFee ? parseFloat(entryFee) : undefined,
         prizePool: prizePool ? parseFloat(prizePool) : undefined,
         prizeType,
         prizeCurrency: prizeType === "CRYPTO" ? prizeCurrency : undefined,
@@ -238,8 +233,6 @@ export default function CreatePage() {
               difficulty={difficulty}
               questionCount={questionCount}
               timeLimit={timeLimit}
-              entryFee={entryFee}
-              setEntryFee={setEntryFee}
             />
           )}
           {step === "review" && (
@@ -251,7 +244,6 @@ export default function CreatePage() {
               title={title}
               timeLimit={timeLimit}
               maxPlayers={maxPlayers}
-              entryFee={entryFee}
               prizePool={prizePool}
               prizeType={prizeType}
               prizeCurrency={prizeCurrency}
@@ -737,25 +729,20 @@ function AIPreviewStep({
   difficulty,
   questionCount,
   timeLimit,
-  entryFee,
-  setEntryFee,
 }: {
   category: QuizCategory;
   difficulty: Difficulty;
   questionCount: number;
   timeLimit: number;
-  entryFee: string;
-  setEntryFee: (v: string) => void;
 }) {
   const cat = CATEGORIES.find((c) => c.id === category);
   return (
     <div className="flex-1 space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-white mb-1">Web3 Settings</h2>
-        <p className="text-slate-400 text-sm">Optional — add on-chain entry fees.</p>
+        <h2 className="text-xl font-bold text-white mb-1">Quiz Preview</h2>
+        <p className="text-slate-400 text-sm">AI will generate your questions based on these settings.</p>
       </div>
 
-      {/* AI summary */}
       <div className="glass rounded-2xl p-4 border border-violet-500/20">
         <h3 className="text-sm font-semibold text-violet-300 mb-3 flex items-center gap-2">
           <Brain className="w-4 h-4" />
@@ -780,41 +767,9 @@ function AIPreviewStep({
           </div>
           <div className="flex justify-between">
             <span className="text-slate-400">Includes</span>
-            <span className="text-emerald-400 font-medium">✓ Explanations</span>
+            <span className="text-emerald-400 font-medium">✓ Explanations & correct answers</span>
           </div>
         </div>
-      </div>
-
-      {/* Entry fee */}
-      <div>
-        <label className="block text-sm font-medium text-slate-300 mb-2 flex items-center gap-1.5">
-          <DollarSign className="w-3.5 h-3.5 text-amber-400" />
-          Entry Fee (RBTC) — optional
-        </label>
-        <input
-          type="number"
-          value={entryFee}
-          onChange={(e) => setEntryFee(e.target.value)}
-          placeholder="0.001"
-          min="0"
-          step="0.001"
-          className="input-field"
-        />
-        <p className="text-xs text-slate-500 mt-1">
-          Requires wallet connection. 90% goes to prize pool, 10% platform fee.
-        </p>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-slate-300 mb-2 flex items-center gap-1.5">
-          <Settings className="w-3.5 h-3.5 text-violet-400" />
-          Description — optional
-        </label>
-        <input
-          type="text"
-          placeholder="Brief description of your quiz..."
-          className="input-field"
-        />
       </div>
     </div>
   );
@@ -902,7 +857,6 @@ function ReviewStep({
   title,
   timeLimit,
   maxPlayers,
-  entryFee,
   prizePool,
   prizeType,
   prizeCurrency,
@@ -917,7 +871,6 @@ function ReviewStep({
   title: string;
   timeLimit: number;
   maxPlayers: number;
-  entryFee: string;
   prizePool: string;
   prizeType: PrizeType;
   prizeCurrency: string;
@@ -961,7 +914,6 @@ function ReviewStep({
         <ReviewRow label="Max Players" value={maxPlayers.toString()} />
         <ReviewRow label="Schedule" value={scheduleLabel()} />
         <ReviewRow label="Prize" value={prizeLabel()} />
-        {entryFee && <ReviewRow label="Entry Fee" value={`${entryFee} RBTC`} />}
       </div>
 
       <div className="glass rounded-2xl p-4 border border-emerald-500/20 text-sm text-emerald-300 flex items-start gap-3">
