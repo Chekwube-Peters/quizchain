@@ -19,11 +19,17 @@ import {
   Users,
   Clock,
   X,
+  Calendar,
+  Gift,
 } from "lucide-react";
 import { CATEGORIES, QuizCategory, Difficulty } from "@/types";
 import Navbar from "@/components/shared/Navbar";
 
 type Step = "mode" | "category" | "config" | "questions" | "review";
+type PrizeType = "NONE" | "CASH" | "CRYPTO" | "BRANDED_GIFT";
+type ScheduleType = "INSTANT" | "SCHEDULED";
+
+const CRYPTO_CURRENCIES = ["RBTC", "BTC", "ETH", "RIF", "USDT0", "USDT", "USDC", "SOL", "BNB", "MATIC", "AVAX", "DOT"];
 
 interface ManualQuestion {
   text: string;
@@ -60,6 +66,16 @@ export default function CreatePage() {
   const [maxPlayers, setMaxPlayers] = useState(100);
   const [entryFee, setEntryFee] = useState("");
   const [prizePool, setPrizePool] = useState("");
+
+  // Prize settings
+  const [prizeType, setPrizeType] = useState<PrizeType>("NONE");
+  const [prizeCurrency, setPrizeCurrency] = useState("RBTC");
+  const [prizeDescription, setPrizeDescription] = useState("");
+
+  // Scheduling
+  const [scheduleType, setScheduleType] = useState<ScheduleType>("INSTANT");
+  const [scheduledAt, setScheduledAt] = useState("");
+
   const [manualQuestions, setManualQuestions] = useState<ManualQuestion[]>([
     { text: "", options: ["", "", "", ""], correctIndex: 0, explanation: "", timeLimit: 30 },
   ]);
@@ -113,6 +129,10 @@ export default function CreatePage() {
         maxPlayers,
         entryFee: entryFee ? parseFloat(entryFee) : undefined,
         prizePool: prizePool ? parseFloat(prizePool) : undefined,
+        prizeType,
+        prizeCurrency: prizeType === "CRYPTO" ? prizeCurrency : undefined,
+        prizeDescription: prizeType === "BRANDED_GIFT" ? prizeDescription : undefined,
+        scheduledAt: scheduleType === "SCHEDULED" && scheduledAt ? scheduledAt : undefined,
         questions: mode === "MANUAL" ? manualQuestions : undefined,
       };
 
@@ -125,9 +145,7 @@ export default function CreatePage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to create quiz");
 
-      // Store quiz in sessionStorage so the host room can load it
       sessionStorage.setItem(`quiz_${data.roomCode}`, JSON.stringify(data.quiz));
-
       router.push(`/room/${data.roomCode}?host=true`);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Something went wrong");
@@ -141,7 +159,6 @@ export default function CreatePage() {
       <Navbar />
 
       <div className="pt-24 pb-16 px-4 sm:px-6 lg:px-8 max-w-3xl mx-auto">
-        {/* Header */}
         <div className="text-center mb-10">
           <h1 className="text-3xl sm:text-4xl font-black text-white mb-2">
             Create Your <span className="gradient-text">Quiz</span>
@@ -192,12 +209,22 @@ export default function CreatePage() {
               setQuestionCount={setQuestionCount}
               title={title}
               setTitle={setTitle}
-              description={description}
-              setDescription={setDescription}
               timeLimit={timeLimit}
               setTimeLimit={setTimeLimit}
               maxPlayers={maxPlayers}
               setMaxPlayers={setMaxPlayers}
+              prizeType={prizeType}
+              setPrizeType={setPrizeType}
+              prizeCurrency={prizeCurrency}
+              setPrizeCurrency={setPrizeCurrency}
+              prizePool={prizePool}
+              setPrizePool={setPrizePool}
+              prizeDescription={prizeDescription}
+              setPrizeDescription={setPrizeDescription}
+              scheduleType={scheduleType}
+              setScheduleType={setScheduleType}
+              scheduledAt={scheduledAt}
+              setScheduledAt={setScheduledAt}
             />
           )}
           {step === "questions" && mode === "MANUAL" && (
@@ -213,10 +240,9 @@ export default function CreatePage() {
               category={category}
               difficulty={difficulty}
               questionCount={questionCount}
+              timeLimit={timeLimit}
               entryFee={entryFee}
               setEntryFee={setEntryFee}
-              prizePool={prizePool}
-              setPrizePool={setPrizePool}
             />
           )}
           {step === "review" && (
@@ -226,9 +252,15 @@ export default function CreatePage() {
               difficulty={difficulty}
               questionCount={mode === "MANUAL" ? manualQuestions.length : questionCount}
               title={title}
+              timeLimit={timeLimit}
               maxPlayers={maxPlayers}
               entryFee={entryFee}
               prizePool={prizePool}
+              prizeType={prizeType}
+              prizeCurrency={prizeCurrency}
+              prizeDescription={prizeDescription}
+              scheduleType={scheduleType}
+              scheduledAt={scheduledAt}
             />
           )}
 
@@ -272,9 +304,7 @@ export default function CreatePage() {
             ) : (
               <button
                 onClick={() => {
-                  if (step === "config" && mode === "AI_GENERATED") {
-                    setStep("questions");
-                  } else if (step === "config" && mode === "MANUAL") {
+                  if (step === "config") {
                     setStep("questions");
                   } else {
                     goNext();
@@ -442,12 +472,22 @@ function ConfigStep({
   setQuestionCount,
   title,
   setTitle,
-  description,
-  setDescription,
   timeLimit,
   setTimeLimit,
   maxPlayers,
   setMaxPlayers,
+  prizeType,
+  setPrizeType,
+  prizeCurrency,
+  setPrizeCurrency,
+  prizePool,
+  setPrizePool,
+  prizeDescription,
+  setPrizeDescription,
+  scheduleType,
+  setScheduleType,
+  scheduledAt,
+  setScheduledAt,
 }: {
   mode: string;
   difficulty: Difficulty;
@@ -456,15 +496,27 @@ function ConfigStep({
   setQuestionCount: (n: 10 | 20 | 50) => void;
   title: string;
   setTitle: (t: string) => void;
-  description: string;
-  setDescription: (d: string) => void;
   timeLimit: number;
   setTimeLimit: (t: number) => void;
   maxPlayers: number;
   setMaxPlayers: (n: number) => void;
+  prizeType: PrizeType;
+  setPrizeType: (p: PrizeType) => void;
+  prizeCurrency: string;
+  setPrizeCurrency: (c: string) => void;
+  prizePool: string;
+  setPrizePool: (v: string) => void;
+  prizeDescription: string;
+  setPrizeDescription: (d: string) => void;
+  scheduleType: ScheduleType;
+  setScheduleType: (s: ScheduleType) => void;
+  scheduledAt: string;
+  setScheduledAt: (d: string) => void;
 }) {
+  const minDateTime = new Date(Date.now() + 5 * 60 * 1000).toISOString().slice(0, 16);
+
   return (
-    <div className="flex-1 space-y-6">
+    <div className="flex-1 space-y-6 overflow-y-auto pr-1">
       <div>
         <h2 className="text-xl font-bold text-white mb-1">Configure settings</h2>
         <p className="text-slate-400 text-sm">Fine-tune your quiz experience.</p>
@@ -562,6 +614,123 @@ function ConfigStep({
           />
         </div>
       </div>
+
+      {/* Scheduling */}
+      <div>
+        <label className="block text-sm font-medium text-slate-300 mb-2 flex items-center gap-1.5">
+          <Calendar className="w-3.5 h-3.5 text-cyan-400" /> Quiz Schedule
+        </label>
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <button
+            onClick={() => setScheduleType("INSTANT")}
+            className={`p-3 rounded-xl border-2 text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
+              scheduleType === "INSTANT"
+                ? "border-cyan-400 bg-cyan-500/10 text-cyan-300"
+                : "border-slate-700 text-slate-400 hover:border-slate-600"
+            }`}
+          >
+            <Zap className="w-4 h-4" /> Instant
+          </button>
+          <button
+            onClick={() => setScheduleType("SCHEDULED")}
+            className={`p-3 rounded-xl border-2 text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
+              scheduleType === "SCHEDULED"
+                ? "border-cyan-400 bg-cyan-500/10 text-cyan-300"
+                : "border-slate-700 text-slate-400 hover:border-slate-600"
+            }`}
+          >
+            <Calendar className="w-4 h-4" /> Tournament
+          </button>
+        </div>
+        {scheduleType === "SCHEDULED" && (
+          <input
+            type="datetime-local"
+            value={scheduledAt}
+            min={minDateTime}
+            onChange={(e) => setScheduledAt(e.target.value)}
+            className="input-field"
+          />
+        )}
+      </div>
+
+      {/* Prize Type */}
+      <div>
+        <label className="block text-sm font-medium text-slate-300 mb-2 flex items-center gap-1.5">
+          <Gift className="w-3.5 h-3.5 text-amber-400" /> Prize Type
+        </label>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+          {([
+            { type: "NONE", label: "No Prize", icon: "🚫" },
+            { type: "CASH", label: "Cash (USD)", icon: "💵" },
+            { type: "CRYPTO", label: "Crypto", icon: "🪙" },
+            { type: "BRANDED_GIFT", label: "Branded Gift", icon: "🎁" },
+          ] as { type: PrizeType; label: string; icon: string }[]).map((p) => (
+            <button
+              key={p.type}
+              onClick={() => setPrizeType(p.type)}
+              className={`p-3 rounded-xl border-2 text-xs font-semibold transition-all flex flex-col items-center gap-1 ${
+                prizeType === p.type
+                  ? "border-amber-400 bg-amber-500/10 text-amber-300"
+                  : "border-slate-700 text-slate-400 hover:border-slate-600"
+              }`}
+            >
+              <span className="text-xl">{p.icon}</span>
+              {p.label}
+            </button>
+          ))}
+        </div>
+
+        {prizeType === "CASH" && (
+          <div className="flex items-center gap-2">
+            <DollarSign className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+            <input
+              type="number"
+              value={prizePool}
+              onChange={(e) => setPrizePool(e.target.value)}
+              placeholder="Prize amount in USD"
+              min="0"
+              step="1"
+              className="input-field flex-1"
+            />
+          </div>
+        )}
+
+        {prizeType === "CRYPTO" && (
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-2">
+              <select
+                value={prizeCurrency}
+                onChange={(e) => setPrizeCurrency(e.target.value)}
+                className="input-field"
+              >
+                {CRYPTO_CURRENCIES.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+              <input
+                type="number"
+                value={prizePool}
+                onChange={(e) => setPrizePool(e.target.value)}
+                placeholder="Amount"
+                min="0"
+                step="0.001"
+                className="input-field"
+              />
+            </div>
+            <p className="text-xs text-slate-500">Prize amount in {prizeCurrency}. Wallet connection required for distribution.</p>
+          </div>
+        )}
+
+        {prizeType === "BRANDED_GIFT" && (
+          <textarea
+            value={prizeDescription}
+            onChange={(e) => setPrizeDescription(e.target.value)}
+            placeholder="Describe the prize (e.g. 'Winner gets a QuizChain hoodie and exclusive NFT badge')"
+            rows={2}
+            className="input-field resize-none"
+          />
+        )}
+      </div>
     </div>
   );
 }
@@ -570,25 +739,23 @@ function AIPreviewStep({
   category,
   difficulty,
   questionCount,
+  timeLimit,
   entryFee,
   setEntryFee,
-  prizePool,
-  setPrizePool,
 }: {
   category: QuizCategory;
   difficulty: Difficulty;
   questionCount: number;
+  timeLimit: number;
   entryFee: string;
   setEntryFee: (v: string) => void;
-  prizePool: string;
-  setPrizePool: (v: string) => void;
 }) {
   const cat = CATEGORIES.find((c) => c.id === category);
   return (
     <div className="flex-1 space-y-6">
       <div>
         <h2 className="text-xl font-bold text-white mb-1">Web3 Settings</h2>
-        <p className="text-slate-400 text-sm">Optional — add on-chain incentives.</p>
+        <p className="text-slate-400 text-sm">Optional — add on-chain entry fees.</p>
       </div>
 
       {/* AI summary */}
@@ -600,9 +767,7 @@ function AIPreviewStep({
         <div className="space-y-2 text-sm">
           <div className="flex justify-between">
             <span className="text-slate-400">Category</span>
-            <span className="text-white font-medium">
-              {cat?.emoji} {cat?.label}
-            </span>
+            <span className="text-white font-medium">{cat?.emoji} {cat?.label}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-slate-400">Difficulty</span>
@@ -613,47 +778,46 @@ function AIPreviewStep({
             <span className="text-white font-medium">{questionCount} questions</span>
           </div>
           <div className="flex justify-between">
+            <span className="text-slate-400">Time per Q</span>
+            <span className="text-white font-medium">{timeLimit}s</span>
+          </div>
+          <div className="flex justify-between">
             <span className="text-slate-400">Includes</span>
             <span className="text-emerald-400 font-medium">✓ Explanations</span>
           </div>
         </div>
       </div>
 
-      {/* Web3 settings */}
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-slate-300 mb-2 flex items-center gap-1.5">
-            <DollarSign className="w-3.5 h-3.5 text-amber-400" />
-            Entry Fee (RBTC) — optional
-          </label>
-          <input
-            type="number"
-            value={entryFee}
-            onChange={(e) => setEntryFee(e.target.value)}
-            placeholder="0.001"
-            min="0"
-            step="0.001"
-            className="input-field"
-          />
-          <p className="text-xs text-slate-500 mt-1">
-            Requires wallet connection. 90% goes to prize pool, 10% platform fee.
-          </p>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-slate-300 mb-2 flex items-center gap-1.5">
-            <Settings className="w-3.5 h-3.5 text-violet-400" />
-            Sponsored Prize Pool (RBTC) — optional
-          </label>
-          <input
-            type="number"
-            value={prizePool}
-            onChange={(e) => setPrizePool(e.target.value)}
-            placeholder="0.01"
-            min="0"
-            step="0.001"
-            className="input-field"
-          />
-        </div>
+      {/* Entry fee */}
+      <div>
+        <label className="block text-sm font-medium text-slate-300 mb-2 flex items-center gap-1.5">
+          <DollarSign className="w-3.5 h-3.5 text-amber-400" />
+          Entry Fee (RBTC) — optional
+        </label>
+        <input
+          type="number"
+          value={entryFee}
+          onChange={(e) => setEntryFee(e.target.value)}
+          placeholder="0.001"
+          min="0"
+          step="0.001"
+          className="input-field"
+        />
+        <p className="text-xs text-slate-500 mt-1">
+          Requires wallet connection. 90% goes to prize pool, 10% platform fee.
+        </p>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-slate-300 mb-2 flex items-center gap-1.5">
+          <Settings className="w-3.5 h-3.5 text-violet-400" />
+          Description — optional
+        </label>
+        <input
+          type="text"
+          placeholder="Brief description of your quiz..."
+          className="input-field"
+        />
       </div>
     </div>
   );
@@ -739,20 +903,47 @@ function ReviewStep({
   difficulty,
   questionCount,
   title,
+  timeLimit,
   maxPlayers,
   entryFee,
   prizePool,
+  prizeType,
+  prizeCurrency,
+  prizeDescription,
+  scheduleType,
+  scheduledAt,
 }: {
   mode: string;
   category: QuizCategory;
   difficulty: Difficulty;
   questionCount: number;
   title: string;
+  timeLimit: number;
   maxPlayers: number;
   entryFee: string;
   prizePool: string;
+  prizeType: PrizeType;
+  prizeCurrency: string;
+  prizeDescription: string;
+  scheduleType: ScheduleType;
+  scheduledAt: string;
 }) {
   const cat = CATEGORIES.find((c) => c.id === category);
+
+  const prizeLabel = () => {
+    if (prizeType === "NONE") return "None";
+    if (prizeType === "CASH") return prizePool ? `$${prizePool} USD` : "Cash (amount TBD)";
+    if (prizeType === "CRYPTO") return prizePool ? `${prizePool} ${prizeCurrency}` : `Crypto (${prizeCurrency})`;
+    if (prizeType === "BRANDED_GIFT") return prizeDescription || "Branded Gift";
+    return "None";
+  };
+
+  const scheduleLabel = () => {
+    if (scheduleType === "INSTANT") return "⚡ Start immediately";
+    if (scheduledAt) return `📅 ${new Date(scheduledAt).toLocaleString()}`;
+    return "📅 Scheduled (date not set)";
+  };
+
   return (
     <div className="flex-1 space-y-6">
       <div>
@@ -766,18 +957,14 @@ function ReviewStep({
         <ReviewRow label="Category" value={`${cat?.emoji} ${cat?.label}`} />
         <ReviewRow
           label="Difficulty"
-          value={
-            difficulty === "EASY"
-              ? "😊 Easy"
-              : difficulty === "MEDIUM"
-              ? "🔥 Medium"
-              : "💀 Hard"
-          }
+          value={difficulty === "EASY" ? "😊 Easy" : difficulty === "MEDIUM" ? "🔥 Medium" : "💀 Hard"}
         />
         <ReviewRow label="Questions" value={`${questionCount} questions`} />
+        <ReviewRow label="Time per Q" value={`${timeLimit}s`} />
         <ReviewRow label="Max Players" value={maxPlayers.toString()} />
+        <ReviewRow label="Schedule" value={scheduleLabel()} />
+        <ReviewRow label="Prize" value={prizeLabel()} />
         {entryFee && <ReviewRow label="Entry Fee" value={`${entryFee} RBTC`} />}
-        {prizePool && <ReviewRow label="Prize Pool" value={`${prizePool} RBTC`} />}
       </div>
 
       <div className="glass rounded-2xl p-4 border border-emerald-500/20 text-sm text-emerald-300 flex items-start gap-3">

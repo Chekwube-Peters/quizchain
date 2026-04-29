@@ -187,20 +187,21 @@ const QUESTION_BANK: Record<QuizCategory, Omit<Question, "id" | "order">[]> = {
 
 function getFallbackQuestions(
   category: QuizCategory,
-  count: number
+  count: number,
+  timeLimit: number
 ): Question[] {
   const pool = QUESTION_BANK[category] || QUESTION_BANK.CUSTOM;
-  // Shuffle pool to vary question order
   const shuffled = [...pool].sort(() => Math.random() - 0.5);
   const selected = shuffled.slice(0, Math.min(count, shuffled.length));
-  return selected.map((q, i) => ({ ...q, id: `q_${i + 1}`, order: i + 1 }));
+  return selected.map((q, i) => ({ ...q, id: `q_${i + 1}`, order: i + 1, timeLimit }));
 }
 
 export async function generateQuizQuestions(
   category: QuizCategory,
   difficulty: Difficulty,
   count: number,
-  customTopic?: string
+  customTopic?: string,
+  timeLimit: number = 30
 ): Promise<Question[]> {
   const topic =
     category === "CUSTOM" && customTopic
@@ -224,7 +225,7 @@ Return ONLY a valid JSON array with this exact structure:
     "correctIndex": 0,
     "explanation": "Brief explanation of why this is correct.",
     "points": 1000,
-    "timeLimit": 30
+    "timeLimit": ${timeLimit}
   }
 ]
 
@@ -234,7 +235,7 @@ Rules:
 - Questions should be factually accurate
 - Mix different aspects of the topic
 - Make distractors plausible but clearly wrong
-- timeLimit: 30 for easy, 25 for medium, 20 for hard
+- timeLimit: ${timeLimit} for all questions
 - points: 1000 for all
 - No duplicate questions
 - Return ONLY the JSON array, no other text`;
@@ -261,6 +262,7 @@ Rules:
           ...q,
           id: `q_${i + 1}`,
           order: i + 1,
+          timeLimit,
         }));
       }
     } catch (err) {
@@ -288,6 +290,7 @@ Rules:
         ...q,
         id: `q_${i + 1}`,
         order: i + 1,
+        timeLimit,
       }));
     } catch (err) {
       console.error("OpenAI generation failed, using built-in questions:", err);
@@ -296,5 +299,5 @@ Rules:
 
   // Built-in fallback — always works, no API keys needed
   console.log(`Using built-in question bank for category: ${category}`);
-  return getFallbackQuestions(category, count);
+  return getFallbackQuestions(category, count, timeLimit);
 }

@@ -88,6 +88,11 @@ model Quiz {
   contractAddress String?
   chainId         Int?
 
+  prizeType        String    @default("NONE")
+  prizeCurrency    String?
+  prizeDescription String?
+  scheduledAt      DateTime?
+
   timesPlayed Int @default(0)
 
   createdAt DateTime @default(now())

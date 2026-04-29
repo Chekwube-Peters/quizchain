@@ -17,6 +17,10 @@ const schema = z.object({
   maxPlayers: z.number().int().min(2).max(1000).default(100),
   entryFee: z.number().optional(),
   prizePool: z.number().optional(),
+  prizeType: z.enum(["NONE", "CASH", "CRYPTO", "BRANDED_GIFT"]).default("NONE"),
+  prizeCurrency: z.string().optional(),
+  prizeDescription: z.string().optional(),
+  scheduledAt: z.string().optional(),
   questions: z.array(z.object({
     text: z.string(),
     options: z.array(z.string()).length(4),
@@ -51,7 +55,7 @@ export async function POST(req: NextRequest) {
     }>;
 
     if (data.mode === "AI_GENERATED") {
-      rawQuestions = await generateQuizQuestions(data.category, data.difficulty, data.questionCount, data.customTopic);
+      rawQuestions = await generateQuizQuestions(data.category, data.difficulty, data.questionCount, data.customTopic, data.timeLimit);
     } else {
       if (!data.questions || data.questions.length === 0) {
         return NextResponse.json({ error: "Manual mode requires questions" }, { status: 400 });
@@ -62,7 +66,7 @@ export async function POST(req: NextRequest) {
         correctIndex: q.correctIndex,
         explanation: q.explanation || "",
         points: 1000,
-        timeLimit: q.timeLimit || data.timeLimit,
+        timeLimit: data.timeLimit,
         order: i + 1,
       }));
     }
@@ -80,6 +84,10 @@ export async function POST(req: NextRequest) {
         hostId: session.user.id,
         entryFee: data.entryFee,
         prizePool: data.prizePool,
+        prizeType: data.prizeType,
+        prizeCurrency: data.prizeCurrency,
+        prizeDescription: data.prizeDescription,
+        scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : null,
         questions: {
           create: rawQuestions.map((q) => ({
             text: q.text,
