@@ -1,90 +1,114 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { Trophy, Users, Zap, DollarSign, Calendar, ChevronRight, Star, Filter } from "lucide-react";
+import { useRouter } from "next/navigation";
+import {
+  Trophy, Users, Zap, DollarSign, Calendar, ChevronRight,
+  Star, Filter, Loader2, Clock, RefreshCw, Gift,
+} from "lucide-react";
 import Navbar from "@/components/shared/Navbar";
+import { CATEGORIES, QuizCategory, Difficulty } from "@/types";
 
-const TOURNAMENTS = [
-  {
-    id: "1",
-    name: "Bitcoin Masters Championship",
-    description: "Test your Bitcoin knowledge in the ultimate showdown",
-    category: "BITCOIN",
-    emoji: "₿",
-    prizePool: 0.5,
-    currency: "RBTC",
-    entryFee: 0.001,
-    participants: 128,
-    maxParticipants: 256,
-    status: "ACTIVE",
-    startDate: "2025-01-25T18:00:00Z",
-    difficulty: "HARD",
-    gradient: "from-orange-500 to-red-500",
-    featured: true,
-  },
-  {
-    id: "2",
-    name: "Rootstock Builder Quest",
-    description: "For RSK ecosystem builders and enthusiasts",
-    category: "ROOTSTOCK",
-    emoji: "🔗",
-    prizePool: 0.25,
-    currency: "RBTC",
-    entryFee: 0.0005,
-    participants: 64,
-    maxParticipants: 128,
-    status: "UPCOMING",
-    startDate: "2025-01-28T20:00:00Z",
-    difficulty: "MEDIUM",
-    gradient: "from-amber-500 to-orange-600",
-    featured: false,
-  },
-  {
-    id: "3",
-    name: "Blockchain Trivia Cup",
-    description: "Open to all — test your Web3 fundamentals",
-    category: "BLOCKCHAIN",
-    emoji: "⛓️",
-    prizePool: 0.1,
-    currency: "RBTC",
-    entryFee: 0,
-    participants: 342,
-    maxParticipants: 500,
-    status: "UPCOMING",
-    startDate: "2025-02-01T16:00:00Z",
-    difficulty: "EASY",
-    gradient: "from-violet-500 to-purple-600",
-    featured: false,
-  },
-  {
-    id: "4",
-    name: "Sports Trivia League",
-    description: "Football, basketball, F1, Olympics — the full sports world",
-    category: "SPORTS",
-    emoji: "⚽",
-    prizePool: 0,
-    currency: "NFT",
-    entryFee: 0,
-    participants: 89,
-    maxParticipants: 200,
-    status: "UPCOMING",
-    startDate: "2025-02-05T19:00:00Z",
-    difficulty: "MEDIUM",
-    gradient: "from-blue-500 to-indigo-600",
-    featured: false,
-  },
-];
+interface Tournament {
+  id: string;
+  title: string;
+  description: string;
+  category: QuizCategory;
+  difficulty: Difficulty;
+  prizeType: string;
+  prizePool: number;
+  prizeCurrency: string;
+  prizeDescription: string;
+  prizeDisplay: string;
+  entryFee: number;
+  scheduledAt: string | null;
+  status: "UPCOMING" | "LIVE" | "ENDED";
+  participantCount: number;
+  maxPlayers: number;
+  roomCode: string | null;
+  hostName: string;
+  hostImage: string | null;
+  timesPlayed: number;
+}
+
+interface Stats {
+  total: number;
+  live: number;
+  upcoming: number;
+}
+
+function getTimeLeft(iso: string | null): { d: number; h: number; m: number; s: number } | null {
+  if (!iso) return null;
+  const diff = new Date(iso).getTime() - Date.now();
+  if (diff <= 0) return null;
+  return {
+    d: Math.floor(diff / 86400000),
+    h: Math.floor((diff % 86400000) / 3600000),
+    m: Math.floor((diff % 3600000) / 60000),
+    s: Math.floor((diff % 60000) / 1000),
+  };
+}
+
+function Countdown({ iso }: { iso: string }) {
+  const [left, setLeft] = useState(() => getTimeLeft(iso));
+
+  useEffect(() => {
+    const id = setInterval(() => setLeft(getTimeLeft(iso)), 1000);
+    return () => clearInterval(id);
+  }, [iso]);
+
+  if (!left) return <span className="text-emerald-400 font-semibold text-sm">Starting now...</span>;
+
+  if (left.d > 0) {
+    return (
+      <span className="text-slate-300 text-sm tabular-nums">
+        {left.d}d {left.h}h {left.m}m
+      </span>
+    );
+  }
+  return (
+    <span className="text-amber-300 font-mono text-sm tabular-nums">
+      {String(left.h).padStart(2, "0")}:{String(left.m).padStart(2, "0")}:{String(left.s).padStart(2, "0")}
+    </span>
+  );
+}
 
 export default function TournamentsPage() {
-  const [filter, setFilter] = useState<"ALL" | "ACTIVE" | "UPCOMING" | "FREE">("ALL");
+  const [filter, setFilter] = useState<"ALL" | "LIVE" | "UPCOMING" | "FREE">("ALL");
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [stats, setStats] = useState<Stats>({ total: 0, live: 0, upcoming: 0 });
+  const [loading, setLoading] = useState(true);
+  const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
 
-  const filtered = TOURNAMENTS.filter((t) => {
-    if (filter === "ACTIVE") return t.status === "ACTIVE";
+  const fetchTournaments = useCallback(async () => {
+    try {
+      const res = await fetch("/api/tournaments");
+      const data = await res.json();
+      setTournaments(data.tournaments ?? []);
+      setStats(data.stats ?? { total: 0, live: 0, upcoming: 0 });
+      setLastRefreshed(new Date());
+    } catch (e) {
+      console.error("Failed to fetch tournaments:", e);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTournaments();
+    const id = setInterval(fetchTournaments, 30000);
+    return () => clearInterval(id);
+  }, [fetchTournaments]);
+
+  const filtered = tournaments.filter((t) => {
+    if (filter === "LIVE") return t.status === "LIVE";
     if (filter === "UPCOMING") return t.status === "UPCOMING";
     if (filter === "FREE") return t.entryFee === 0;
-    return true;
+    return t.status !== "ENDED";
   });
+
+  const featured = tournaments.find((t) => t.status === "LIVE");
 
   return (
     <div className="min-h-screen bg-dark-900">
@@ -101,14 +125,31 @@ export default function TournamentsPage() {
             <span className="gradient-text">Tournaments</span>
           </h1>
           <p className="text-slate-400 max-w-xl mx-auto">
-            Compete for RBTC prizes and exclusive NFT badges. Results hashed on-chain.
+            Compete for prizes and exclusive badges. All scheduled and live tournaments in one place.
           </p>
         </div>
 
-        {/* Filter */}
-        <div className="flex gap-2 mb-8 flex-wrap">
-          <FilterIcon className="text-slate-400 mt-2" />
-          {(["ALL", "ACTIVE", "UPCOMING", "FREE"] as const).map((f) => (
+        {/* Live stats bar */}
+        {!loading && (
+          <div className="flex flex-wrap items-center justify-center gap-6 mb-8">
+            <StatPill icon={<Trophy className="w-3.5 h-3.5 text-amber-400" />} value={stats.total} label="Total" />
+            <StatPill icon={<div className="status-dot-live scale-75" />} value={stats.live} label="Live now" highlight={stats.live > 0} />
+            <StatPill icon={<Calendar className="w-3.5 h-3.5 text-cyan-400" />} value={stats.upcoming} label="Upcoming" />
+            <button
+              onClick={fetchTournaments}
+              className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors"
+              title={`Last updated: ${lastRefreshed.toLocaleTimeString()}`}
+            >
+              <RefreshCw className="w-3 h-3" />
+              Refreshes live
+            </button>
+          </div>
+        )}
+
+        {/* Filter tabs */}
+        <div className="flex gap-2 mb-8 flex-wrap items-center">
+          <Filter className="w-4 h-4 text-slate-400 mt-0.5" />
+          {(["ALL", "LIVE", "UPCOMING", "FREE"] as const).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
@@ -118,36 +159,52 @@ export default function TournamentsPage() {
                   : "border-slate-700 text-slate-400 hover:text-white hover:border-slate-600"
               }`}
             >
-              {f === "FREE" ? "🆓 Free" : f === "ACTIVE" ? "🔴 Live" : f}
+              {f === "FREE" ? "🆓 Free" : f === "LIVE" ? "🔴 Live" : f}
             </button>
           ))}
         </div>
 
-        {/* Featured tournament */}
-        {filter === "ALL" && TOURNAMENTS.find((t) => t.featured) && (
-          <FeaturedTournament tournament={TOURNAMENTS.find((t) => t.featured)!} />
+        {/* Loading */}
+        {loading && (
+          <div className="flex items-center justify-center py-24">
+            <Loader2 className="w-8 h-8 text-violet-400 animate-spin" />
+          </div>
         )}
 
-        {/* Tournament grid */}
-        <div className="grid md:grid-cols-2 gap-5">
-          {filtered
-            .filter((t) => filter !== "ALL" || !t.featured)
-            .map((t) => (
-              <TournamentCard key={t.id} tournament={t} />
-            ))}
-        </div>
+        {/* Featured LIVE tournament */}
+        {!loading && filter === "ALL" && featured && (
+          <FeaturedCard tournament={featured} />
+        )}
 
-        {/* Create tournament CTA */}
+        {/* Grid */}
+        {!loading && (
+          <>
+            {filtered.filter((t) => filter !== "ALL" || t.id !== featured?.id).length > 0 ? (
+              <div className="grid md:grid-cols-2 gap-5">
+                {filtered
+                  .filter((t) => filter !== "ALL" || t.id !== featured?.id)
+                  .map((t) => (
+                    <TournamentCard key={t.id} tournament={t} />
+                  ))}
+              </div>
+            ) : (
+              !featured && (
+                <EmptyState filter={filter} />
+              )
+            )}
+          </>
+        )}
+
+        {/* Create CTA */}
         <div className="mt-10 glass rounded-3xl p-8 text-center border border-violet-500/20">
           <div className="text-4xl mb-3">🏆</div>
           <h3 className="text-xl font-bold text-white mb-2">Host Your Own Tournament</h3>
           <p className="text-slate-400 text-sm mb-5 max-w-md mx-auto">
-            Set up prize pools, entry fees, and run multi-round tournaments for your community.
-            Smart contracts auto-distribute rewards.
+            Schedule a quiz with prizes, set entry conditions, and share the room code with your community.
           </p>
           <Link href="/create" className="btn-primary py-3 px-8 gap-2">
             <Zap className="w-4 h-4" />
-            Create Tournament
+            Schedule Tournament
           </Link>
         </div>
       </div>
@@ -155,103 +212,150 @@ export default function TournamentsPage() {
   );
 }
 
-function FeaturedTournament({ tournament: t }: { tournament: (typeof TOURNAMENTS)[0] }) {
-  const pct = (t.participants / t.maxParticipants) * 100;
+function StatPill({ icon, value, label, highlight }: { icon: React.ReactNode; value: number; label: string; highlight?: boolean }) {
+  return (
+    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-dark-800 border border-slate-800">
+      {icon}
+      <span className={`text-sm font-bold ${highlight ? "text-emerald-400" : "text-white"}`}>{value}</span>
+      <span className="text-xs text-slate-500">{label}</span>
+    </div>
+  );
+}
+
+function FeaturedCard({ tournament: t }: { tournament: Tournament }) {
+  const router = useRouter();
+  const cat = CATEGORIES.find((c) => c.id === t.category);
+  const pct = Math.min((t.participantCount / t.maxPlayers) * 100, 100);
+
+  const handleJoin = () => {
+    if (t.roomCode) router.push(`/play/${t.roomCode}`);
+  };
 
   return (
     <div className="relative glass rounded-3xl p-6 sm:p-8 border border-violet-500/30 shadow-glow-purple mb-6 overflow-hidden">
-      <div
-        className={`absolute top-0 right-0 w-64 h-64 bg-gradient-to-br ${t.gradient} opacity-10 rounded-full blur-3xl`}
-      />
+      <div className={`absolute top-0 right-0 w-64 h-64 bg-gradient-to-br ${cat?.gradient || "from-violet-500 to-cyan-500"} opacity-10 rounded-full blur-3xl`} />
       <div className="relative z-10">
         <div className="flex items-start justify-between mb-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <div className="status-dot-live" />
-              <span className="text-xs font-bold text-emerald-400 uppercase">FEATURED • LIVE</span>
+              <span className="text-xs font-bold text-emerald-400 uppercase">Featured · Live Now</span>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-black text-white">{t.name}</h2>
-            <p className="text-slate-400 mt-1">{t.description}</p>
+            <h2 className="text-2xl sm:text-3xl font-black text-white">{t.title}</h2>
+            {t.description && <p className="text-slate-400 mt-1">{t.description}</p>}
           </div>
-          <div className="text-5xl">{t.emoji}</div>
+          <div className="text-5xl">{cat?.emoji ?? "🏆"}</div>
         </div>
 
         <div className="grid sm:grid-cols-3 gap-4 mb-5">
-          <InfoBlock icon={<DollarSign className="w-4 h-4 text-amber-400" />} label="Prize Pool" value={`${t.prizePool} ${t.currency}`} highlight />
-          <InfoBlock icon={<Users className="w-4 h-4 text-cyan-400" />} label="Players" value={`${t.participants}/${t.maxParticipants}`} />
+          <InfoBlock
+            icon={<PrizeIcon type={t.prizeType} />}
+            label="Prize"
+            value={t.prizeDisplay}
+            highlight={t.prizeType !== "NONE"}
+          />
+          <InfoBlock icon={<Users className="w-4 h-4 text-cyan-400" />} label="Players" value={`${t.participantCount}/${t.maxPlayers}`} />
           <InfoBlock icon={<Zap className="w-4 h-4 text-violet-400" />} label="Entry" value={t.entryFee === 0 ? "Free" : `${t.entryFee} RBTC`} />
         </div>
 
-        <div className="mb-4">
+        <div className="mb-5">
           <div className="flex justify-between text-xs text-slate-500 mb-1.5">
-            <span>Spots filling up</span>
-            <span>{t.maxParticipants - t.participants} remaining</span>
+            <span>Spots filling</span>
+            <span>{t.maxPlayers - t.participantCount} remaining</span>
           </div>
           <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-            <div className="progress-bar h-full" style={{ width: `${pct}%` }} />
+            <div className="progress-bar h-full transition-all duration-700" style={{ width: `${pct}%` }} />
           </div>
         </div>
 
-        <button className="btn-primary py-3 px-8 gap-2">
-          <Star className="w-4 h-4" />
-          Join Tournament
-          <ChevronRight className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleJoin}
+            disabled={!t.roomCode}
+            className="btn-primary py-3 px-8 gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Star className="w-4 h-4" />
+            Join Now
+            <ChevronRight className="w-4 h-4" />
+          </button>
+          <span className="text-xs text-slate-500 flex items-center gap-1">
+            <Users className="w-3 h-3" />
+            {t.participantCount} joined
+          </span>
+        </div>
       </div>
     </div>
   );
 }
 
-function TournamentCard({ tournament: t }: { tournament: (typeof TOURNAMENTS)[0] }) {
-  const start = new Date(t.startDate);
-  const isLive = t.status === "ACTIVE";
+function TournamentCard({ tournament: t }: { tournament: Tournament }) {
+  const router = useRouter();
+  const cat = CATEGORIES.find((c) => c.id === t.category);
+  const isLive = t.status === "LIVE";
+
+  const handleJoin = () => {
+    if (t.roomCode) router.push(`/play/${t.roomCode}`);
+  };
 
   return (
     <div className="glass rounded-2xl p-5 border border-slate-700/50 hover:border-violet-500/30 transition-colors group">
       <div className="flex items-start gap-4">
-        <div
-          className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${t.gradient} flex items-center justify-center text-3xl flex-shrink-0 shadow-lg`}
-        >
-          {t.emoji}
+        <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${cat?.gradient || "from-violet-500 to-cyan-500"} flex items-center justify-center text-3xl flex-shrink-0 shadow-lg`}>
+          {cat?.emoji ?? "🏆"}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <h3 className="font-bold text-white">{t.name}</h3>
-            <span
-              className={`text-xs px-2 py-0.5 rounded-full font-semibold flex-shrink-0 ${
-                isLive
-                  ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                  : "bg-blue-500/20 text-blue-400 border border-blue-500/30"
-              }`}
-            >
-              {isLive ? "🔴 LIVE" : "🔵 Soon"}
+            <h3 className="font-bold text-white truncate">{t.title}</h3>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-semibold flex-shrink-0 border ${
+              isLive
+                ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+                : "bg-blue-500/20 text-blue-400 border-blue-500/30"
+            }`}>
+              {isLive ? "🔴 LIVE" : "🔵 Upcoming"}
             </span>
           </div>
-          <p className="text-xs text-slate-400 mb-2">{t.description}</p>
+
+          {t.description && (
+            <p className="text-xs text-slate-400 mb-2 line-clamp-1">{t.description}</p>
+          )}
+
           <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
             <span className="flex items-center gap-1">
               <Users className="w-3 h-3" />
-              {t.participants}
+              {t.participantCount}/{t.maxPlayers}
             </span>
-            <span className="flex items-center gap-1">
-              <DollarSign className="w-3 h-3" />
-              {t.prizePool > 0 ? `${t.prizePool} RBTC` : "No prize"}
-            </span>
-            <span className="flex items-center gap-1">
-              <Calendar className="w-3 h-3" />
-              {start.toLocaleDateString()}
-            </span>
-            <span
-              className={`font-medium ${
-                t.difficulty === "EASY"
-                  ? "text-emerald-400"
-                  : t.difficulty === "MEDIUM"
-                  ? "text-amber-400"
-                  : "text-red-400"
-              }`}
-            >
+            <span className={`font-medium ${
+              t.difficulty === "EASY" ? "text-emerald-400" :
+              t.difficulty === "MEDIUM" ? "text-amber-400" : "text-red-400"
+            }`}>
               {t.difficulty}
             </span>
+            {t.prizeDisplay !== "No Prize" && (
+              <span className="flex items-center gap-1 text-amber-300">
+                <PrizeIcon type={t.prizeType} small />
+                {t.prizeDisplay}
+              </span>
+            )}
+          </div>
+
+          {/* Countdown or date */}
+          <div className="mt-2 flex items-center gap-1.5 text-xs">
+            {isLive ? (
+              <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                <div className="status-dot-live scale-50" />
+                Live now
+              </span>
+            ) : t.scheduledAt ? (
+              <span className="flex items-center gap-1 text-slate-400">
+                <Clock className="w-3 h-3" />
+                Starts in <Countdown iso={t.scheduledAt} />
+              </span>
+            ) : (
+              <span className="text-slate-500 flex items-center gap-1">
+                <Calendar className="w-3 h-3" />
+                Date TBD
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -264,39 +368,62 @@ function TournamentCard({ tournament: t }: { tournament: (typeof TOURNAMENTS)[0]
             <span>Entry: {t.entryFee} RBTC</span>
           )}
         </span>
-        <button className="flex items-center gap-1.5 text-sm font-semibold text-violet-400 hover:text-violet-300 transition-colors group-hover:gap-2">
-          Join
-          <ChevronRight className="w-4 h-4" />
-        </button>
+        {isLive && t.roomCode ? (
+          <button
+            onClick={handleJoin}
+            className="flex items-center gap-1.5 text-sm font-semibold text-emerald-400 hover:text-emerald-300 transition-colors group-hover:gap-2"
+          >
+            Join Now
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        ) : (
+          <span className="text-xs text-slate-500 flex items-center gap-1">
+            <Calendar className="w-3 h-3" />
+            {t.scheduledAt
+              ? new Date(t.scheduledAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+              : "Scheduled"}
+          </span>
+        )}
       </div>
     </div>
   );
 }
 
-function InfoBlock({
-  icon,
-  label,
-  value,
-  highlight = false,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  highlight?: boolean;
-}) {
+function InfoBlock({ icon, label, value, highlight = false }: { icon: React.ReactNode; label: string; value: string; highlight?: boolean }) {
   return (
     <div className="glass rounded-xl p-3 border border-slate-700/50">
       <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1">
         {icon}
         {label}
       </div>
-      <div className={`font-bold text-sm ${highlight ? "gradient-text" : "text-white"}`}>
-        {value}
-      </div>
+      <div className={`font-bold text-sm ${highlight ? "gradient-text" : "text-white"}`}>{value}</div>
     </div>
   );
 }
 
-function FilterIcon({ className }: { className?: string }) {
-  return <Filter className={`w-4 h-4 ${className}`} />;
+function PrizeIcon({ type, small }: { type: string; small?: boolean }) {
+  const cls = small ? "w-3 h-3" : "w-4 h-4";
+  if (type === "CRYPTO") return <Zap className={`${cls} text-amber-400`} />;
+  if (type === "CASH") return <DollarSign className={`${cls} text-emerald-400`} />;
+  if (type === "BRANDED_GIFT") return <Gift className={`${cls} text-pink-400`} />;
+  return <Trophy className={`${cls} text-amber-400`} />;
+}
+
+function EmptyState({ filter }: { filter: string }) {
+  return (
+    <div className="text-center py-20 text-slate-500">
+      <Trophy className="w-12 h-12 mx-auto mb-4 opacity-20" />
+      <p className="text-lg font-semibold text-slate-400 mb-2">
+        {filter === "LIVE" ? "No live tournaments right now" :
+         filter === "UPCOMING" ? "No upcoming tournaments yet" :
+         filter === "FREE" ? "No free tournaments scheduled" :
+         "No tournaments scheduled yet"}
+      </p>
+      <p className="text-sm mb-6">Be the first to create one!</p>
+      <Link href="/create" className="btn-primary py-3 px-8 gap-2">
+        <Zap className="w-4 h-4" />
+        Schedule Tournament
+      </Link>
+    </div>
+  );
 }
