@@ -42,7 +42,30 @@ interface ManualQuestion {
 export default function CreatePage() {
   const router = useRouter();
   const { status } = useSession();
+
+  // All hooks must be declared before any early returns (Rules of Hooks)
   const [step, setStep] = useState<Step>("mode");
+  const [mode, setMode] = useState<"AI_GENERATED" | "MANUAL">("AI_GENERATED");
+  const [category, setCategory] = useState<QuizCategory>("BLOCKCHAIN");
+  const [customTopic, setCustomTopic] = useState("");
+  const [difficulty, setDifficulty] = useState<Difficulty>("MEDIUM");
+  const [questionCount, setQuestionCount] = useState<10 | 20 | 50>(10);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [timeLimit, setTimeLimit] = useState(30);
+  const [maxPlayers, setMaxPlayers] = useState(100);
+  const [entryFee, setEntryFee] = useState("");
+  const [prizePool, setPrizePool] = useState("");
+  const [prizeType, setPrizeType] = useState<PrizeType>("NONE");
+  const [prizeCurrency, setPrizeCurrency] = useState("RBTC");
+  const [prizeDescription, setPrizeDescription] = useState("");
+  const [scheduleType, setScheduleType] = useState<ScheduleType>("INSTANT");
+  const [scheduledAt, setScheduledAt] = useState("");
+  const [manualQuestions, setManualQuestions] = useState<ManualQuestion[]>([
+    { text: "", options: ["", "", "", ""], correctIndex: 0, explanation: "", timeLimit: 30 },
+  ]);
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (status === "unauthenticated") router.replace("/auth/signin?callbackUrl=/create");
@@ -55,32 +78,6 @@ export default function CreatePage() {
       </div>
     );
   }
-  const [mode, setMode] = useState<"AI_GENERATED" | "MANUAL">("AI_GENERATED");
-  const [category, setCategory] = useState<QuizCategory>("BLOCKCHAIN");
-  const [customTopic, setCustomTopic] = useState("");
-  const [difficulty, setDifficulty] = useState<Difficulty>("MEDIUM");
-  const [questionCount, setQuestionCount] = useState<10 | 20 | 50>(10);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [timeLimit, setTimeLimit] = useState(30);
-  const [maxPlayers, setMaxPlayers] = useState(100);
-  const [entryFee, setEntryFee] = useState("");
-  const [prizePool, setPrizePool] = useState("");
-
-  // Prize settings
-  const [prizeType, setPrizeType] = useState<PrizeType>("NONE");
-  const [prizeCurrency, setPrizeCurrency] = useState("RBTC");
-  const [prizeDescription, setPrizeDescription] = useState("");
-
-  // Scheduling
-  const [scheduleType, setScheduleType] = useState<ScheduleType>("INSTANT");
-  const [scheduledAt, setScheduledAt] = useState("");
-
-  const [manualQuestions, setManualQuestions] = useState<ManualQuestion[]>([
-    { text: "", options: ["", "", "", ""], correctIndex: 0, explanation: "", timeLimit: 30 },
-  ]);
-  const [generating, setGenerating] = useState(false);
-  const [error, setError] = useState("");
 
   const STEPS: Step[] = ["mode", "category", "config", "questions", "review"];
   const stepIndex = STEPS.indexOf(step);
