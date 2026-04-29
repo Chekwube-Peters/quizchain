@@ -238,7 +238,3 @@ function MiniStat({ icon, value, label }: { icon: React.ReactNode; value: string
   );
 }
 
-function formatTime(ms: number): string {
-  const s = Math.floor(ms / 1000);
-  return s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`;
-}
