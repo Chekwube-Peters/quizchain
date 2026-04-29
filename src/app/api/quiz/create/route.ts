@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { generateQuizQuestions } from "@/lib/ai";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 
 const schema = z.object({
   mode: z.enum(["AI_GENERATED", "MANUAL"]),
@@ -30,6 +33,11 @@ function generateCode() {
 
 export async function POST(req: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Sign in to create a quiz" }, { status: 401 });
+    }
+
     const body = await req.json();
     const parsed = schema.safeParse(body);
     if (!parsed.success) {
@@ -37,21 +45,18 @@ export async function POST(req: NextRequest) {
     }
 
     const data = parsed.data;
-    let questions;
+    let rawQuestions: Array<{
+      text: string; options: string[]; correctIndex: number;
+      explanation?: string; points: number; timeLimit: number; order: number;
+    }>;
 
     if (data.mode === "AI_GENERATED") {
-      questions = await generateQuizQuestions(
-        data.category,
-        data.difficulty,
-        data.questionCount,
-        data.customTopic
-      );
+      rawQuestions = await generateQuizQuestions(data.category, data.difficulty, data.questionCount, data.customTopic);
     } else {
       if (!data.questions || data.questions.length === 0) {
         return NextResponse.json({ error: "Manual mode requires questions" }, { status: 400 });
       }
-      questions = data.questions.map((q, i) => ({
-        id: `q_${i + 1}`,
+      rawQuestions = data.questions.map((q, i) => ({
         text: q.text,
         options: q.options,
         correctIndex: q.correctIndex,
@@ -64,26 +69,59 @@ export async function POST(req: NextRequest) {
 
     const roomCode = generateCode();
 
-    // Build the quiz object for session storage
-    const quiz = {
-      id: `quiz_${Date.now()}`,
-      title: data.title || `${data.category} Quiz`,
-      category: data.category,
-      difficulty: data.difficulty,
-      questions,
-      totalQuestions: questions.length,
+    const quiz = await prisma.quiz.create({
+      data: {
+        title: data.title || `${data.category} Quiz`,
+        description: data.description,
+        category: data.category as any,
+        difficulty: data.difficulty as any,
+        mode: data.mode as any,
+        status: "PUBLISHED" as any,
+        hostId: session.user.id,
+        entryFee: data.entryFee,
+        prizePool: data.prizePool,
+        questions: {
+          create: rawQuestions.map((q) => ({
+            text: q.text,
+            options: q.options,
+            correctIndex: q.correctIndex,
+            explanation: q.explanation || "",
+            points: q.points,
+            timeLimit: q.timeLimit,
+            order: q.order,
+          })),
+        },
+        rooms: {
+          create: { code: roomCode, maxPlayers: data.maxPlayers, isPublic: true },
+        },
+      },
+      include: {
+        questions: { orderBy: { order: "asc" } },
+      },
+    });
+
+    const quizForClient = {
+      id: quiz.id,
+      title: quiz.title,
+      category: quiz.category,
+      difficulty: quiz.difficulty,
+      questions: quiz.questions.map((q) => ({
+        id: q.id,
+        text: q.text,
+        options: q.options,
+        correctIndex: q.correctIndex,
+        explanation: q.explanation || "",
+        points: q.points,
+        timeLimit: q.timeLimit,
+        order: q.order,
+      })),
+      totalQuestions: quiz.questions.length,
       maxPlayers: data.maxPlayers,
       entryFee: data.entryFee,
       prizePool: data.prizePool,
     };
 
-    // Return the room code and quiz data
-    // In production, store in DB and use DB ID
-    return NextResponse.json({
-      roomCode,
-      quiz,
-      message: "Quiz created successfully",
-    });
+    return NextResponse.json({ roomCode, quiz: quizForClient, message: "Quiz created successfully" });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Failed to create quiz";
     console.error("Create quiz error:", error);
