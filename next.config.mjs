@@ -1,6 +1,18 @@
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  webpack: (config) => {
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      "@": path.join(__dirname, "src"),
+    };
+    return config;
+  },
   images: {
     remotePatterns: [
       {
@@ -13,9 +25,7 @@ const nextConfig = {
         hostname: "avatars.githubusercontent.com",
         pathname: "/**",
       },
-      // Google profile pictures
       { protocol: "https", hostname: "lh3.googleusercontent.com", pathname: "/**" },
-      // Discord CDN avatars
       { protocol: "https", hostname: "cdn.discordapp.com", pathname: "/**" },
     ],
   },
