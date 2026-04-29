@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Trophy, Users, Zap, DollarSign, Calendar, ChevronRight,
-  Star, Filter, Loader2, Clock, RefreshCw, Gift,
+  Star, Filter, Loader2, Clock, RefreshCw, Gift, X,
+  Brain, Shield, ArrowRight,
 } from "lucide-react";
 import Navbar from "@/components/shared/Navbar";
 import { CATEGORIES, QuizCategory, Difficulty } from "@/types";
@@ -50,7 +51,7 @@ function getTimeLeft(iso: string | null): { d: number; h: number; m: number; s: 
   };
 }
 
-function Countdown({ iso }: { iso: string }) {
+function Countdown({ iso, large }: { iso: string; large?: boolean }) {
   const [left, setLeft] = useState(() => getTimeLeft(iso));
 
   useEffect(() => {
@@ -58,21 +59,221 @@ function Countdown({ iso }: { iso: string }) {
     return () => clearInterval(id);
   }, [iso]);
 
-  if (!left) return <span className="text-emerald-400 font-semibold text-sm">Starting now...</span>;
+  if (!left) return <span className={`text-emerald-400 font-semibold ${large ? "text-lg" : "text-sm"}`}>Starting now!</span>;
 
   if (left.d > 0) {
     return (
-      <span className="text-slate-300 text-sm tabular-nums">
+      <span className={`text-slate-300 tabular-nums ${large ? "text-lg font-bold" : "text-sm"}`}>
         {left.d}d {left.h}h {left.m}m
       </span>
     );
   }
   return (
-    <span className="text-amber-300 font-mono text-sm tabular-nums">
+    <span className={`text-amber-300 font-mono tabular-nums ${large ? "text-2xl font-black" : "text-sm"}`}>
       {String(left.h).padStart(2, "0")}:{String(left.m).padStart(2, "0")}:{String(left.s).padStart(2, "0")}
     </span>
   );
 }
+
+// ─── MODAL ────────────────────────────────────────────────────────────────────
+
+function TournamentModal({ tournament: t, onClose }: { tournament: Tournament; onClose: () => void }) {
+  const router = useRouter();
+  const cat = CATEGORIES.find((c) => c.id === t.category);
+  const isLive = t.status === "LIVE";
+  const pct = Math.min((t.participantCount / t.maxPlayers) * 100, 100);
+
+  const handleJoin = () => {
+    if (t.roomCode) {
+      router.push(`/play/${t.roomCode}`);
+    }
+  };
+
+  // Close on backdrop click
+  const handleBackdrop = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) onClose();
+  };
+
+  // Close on Escape
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  // Prevent body scroll
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = ""; };
+  }, []);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+      onClick={handleBackdrop}
+    >
+      <div className="relative w-full max-w-lg glass rounded-3xl border border-slate-700/60 shadow-2xl overflow-hidden animate-fade-in">
+        {/* Gradient accent */}
+        <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${cat?.gradient || "from-violet-500 to-cyan-500"}`} />
+
+        {/* Header */}
+        <div className="flex items-start justify-between p-6 pb-0">
+          <div className="flex items-start gap-4">
+            <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${cat?.gradient || "from-violet-500 to-cyan-500"} flex items-center justify-center text-3xl flex-shrink-0 shadow-lg`}>
+              {cat?.emoji ?? "🏆"}
+            </div>
+            <div>
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <span className={`text-xs px-2 py-0.5 rounded-full font-semibold border ${
+                  isLive
+                    ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+                    : "bg-blue-500/20 text-blue-400 border-blue-500/30"
+                }`}>
+                  {isLive ? "🔴 LIVE" : "🔵 Upcoming"}
+                </span>
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                  t.difficulty === "EASY" ? "text-emerald-300 bg-emerald-500/10" :
+                  t.difficulty === "MEDIUM" ? "text-amber-300 bg-amber-500/10" :
+                  "text-red-300 bg-red-500/10"
+                }`}>
+                  {t.difficulty === "EASY" ? "😊" : t.difficulty === "MEDIUM" ? "🔥" : "💀"} {t.difficulty}
+                </span>
+              </div>
+              <h2 className="text-xl font-black text-white leading-snug">{t.title}</h2>
+              <p className="text-xs text-slate-400 mt-0.5">{cat?.label} · Hosted by {t.hostName}</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-700/60 transition-colors flex-shrink-0 ml-2"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Scrollable body */}
+        <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
+          {/* Description */}
+          {t.description && (
+            <p className="text-slate-300 text-sm leading-relaxed">{t.description}</p>
+          )}
+
+          {/* Countdown / live indicator */}
+          <div className={`rounded-2xl p-4 border text-center ${
+            isLive
+              ? "border-emerald-500/30 bg-emerald-500/5"
+              : "border-cyan-500/20 bg-cyan-500/5"
+          }`}>
+            {isLive ? (
+              <div className="flex items-center justify-center gap-2">
+                <div className="status-dot-live" />
+                <span className="text-emerald-400 font-bold text-lg">Tournament is Live!</span>
+              </div>
+            ) : t.scheduledAt ? (
+              <>
+                <p className="text-xs text-slate-500 mb-1.5 flex items-center justify-center gap-1">
+                  <Clock className="w-3 h-3" /> Starts in
+                </p>
+                <Countdown iso={t.scheduledAt} large />
+                <p className="text-xs text-slate-500 mt-1.5">
+                  {new Date(t.scheduledAt).toLocaleString("en-US", {
+                    weekday: "short", month: "short", day: "numeric",
+                    hour: "2-digit", minute: "2-digit",
+                  })}
+                </p>
+              </>
+            ) : (
+              <p className="text-slate-400 text-sm">Date to be announced</p>
+            )}
+          </div>
+
+          {/* Details grid */}
+          <div className="grid grid-cols-2 gap-3">
+            <DetailTile
+              icon={<PrizeIcon type={t.prizeType} />}
+              label="Prize"
+              value={t.prizeDisplay}
+              accent={t.prizeType !== "NONE"}
+            />
+            <DetailTile
+              icon={<Zap className="w-4 h-4 text-violet-400" />}
+              label="Entry Fee"
+              value={t.entryFee === 0 ? "🆓 Free" : `${t.entryFee} RBTC`}
+            />
+            <DetailTile
+              icon={<Users className="w-4 h-4 text-cyan-400" />}
+              label="Players"
+              value={`${t.participantCount} / ${t.maxPlayers}`}
+            />
+            <DetailTile
+              icon={<Brain className="w-4 h-4 text-pink-400" />}
+              label="Category"
+              value={`${cat?.emoji} ${cat?.label}`}
+            />
+          </div>
+
+          {/* Spots progress */}
+          <div>
+            <div className="flex justify-between text-xs text-slate-500 mb-1.5">
+              <span>Spots filled</span>
+              <span>{t.maxPlayers - t.participantCount} remaining</span>
+            </div>
+            <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+              <div className="progress-bar h-full transition-all duration-700" style={{ width: `${pct}%` }} />
+            </div>
+          </div>
+
+          {/* Prize description for branded gift */}
+          {t.prizeType === "BRANDED_GIFT" && t.prizeDescription && (
+            <div className="rounded-xl p-3 border border-pink-500/20 bg-pink-500/5 text-sm text-pink-200">
+              <p className="font-semibold mb-1 flex items-center gap-1.5">
+                <Gift className="w-3.5 h-3.5" /> Prize Details
+              </p>
+              <p className="text-slate-300 text-xs">{t.prizeDescription}</p>
+            </div>
+          )}
+
+          {/* Room code info */}
+          {!t.roomCode && (
+            <div className="rounded-xl p-3 border border-amber-500/20 bg-amber-500/5 text-xs text-amber-300 flex items-start gap-2">
+              <Shield className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+              The host hasn&apos;t opened the room yet. Check back closer to the start time.
+            </div>
+          )}
+        </div>
+
+        {/* Footer actions */}
+        <div className="flex items-center gap-3 p-6 pt-0">
+          <button
+            onClick={onClose}
+            className="flex-1 py-3 rounded-xl border border-slate-700 text-slate-400 hover:text-white hover:border-slate-600 transition-colors text-sm font-medium"
+          >
+            Close
+          </button>
+          <button
+            onClick={handleJoin}
+            disabled={!t.roomCode}
+            className="flex-1 btn-primary py-3 gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {isLive ? (
+              <>
+                <Star className="w-4 h-4" fill="currentColor" />
+                Join Now
+              </>
+            ) : (
+              <>
+                <ArrowRight className="w-4 h-4" />
+                Enter Room
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── PAGE ─────────────────────────────────────────────────────────────────────
 
 export default function TournamentsPage() {
   const [filter, setFilter] = useState<"ALL" | "LIVE" | "UPCOMING" | "FREE">("ALL");
@@ -80,6 +281,7 @@ export default function TournamentsPage() {
   const [stats, setStats] = useState<Stats>({ total: 0, live: 0, upcoming: 0 });
   const [loading, setLoading] = useState(true);
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
+  const [selected, setSelected] = useState<Tournament | null>(null);
 
   const fetchTournaments = useCallback(async () => {
     try {
@@ -113,6 +315,10 @@ export default function TournamentsPage() {
   return (
     <div className="min-h-screen bg-dark-900">
       <Navbar />
+
+      {selected && (
+        <TournamentModal tournament={selected} onClose={() => setSelected(null)} />
+      )}
 
       <div className="pt-20 pb-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         {/* Header */}
@@ -173,7 +379,7 @@ export default function TournamentsPage() {
 
         {/* Featured LIVE tournament */}
         {!loading && filter === "ALL" && featured && (
-          <FeaturedCard tournament={featured} />
+          <FeaturedCard tournament={featured} onViewDetails={() => setSelected(featured)} />
         )}
 
         {/* Grid */}
@@ -184,13 +390,11 @@ export default function TournamentsPage() {
                 {filtered
                   .filter((t) => filter !== "ALL" || t.id !== featured?.id)
                   .map((t) => (
-                    <TournamentCard key={t.id} tournament={t} />
+                    <TournamentCard key={t.id} tournament={t} onViewDetails={() => setSelected(t)} />
                   ))}
               </div>
             ) : (
-              !featured && (
-                <EmptyState filter={filter} />
-              )
+              !featured && <EmptyState filter={filter} />
             )}
           </>
         )}
@@ -212,6 +416,8 @@ export default function TournamentsPage() {
   );
 }
 
+// ─── SUB-COMPONENTS ───────────────────────────────────────────────────────────
+
 function StatPill({ icon, value, label, highlight }: { icon: React.ReactNode; value: number; label: string; highlight?: boolean }) {
   return (
     <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-dark-800 border border-slate-800">
@@ -222,14 +428,9 @@ function StatPill({ icon, value, label, highlight }: { icon: React.ReactNode; va
   );
 }
 
-function FeaturedCard({ tournament: t }: { tournament: Tournament }) {
-  const router = useRouter();
+function FeaturedCard({ tournament: t, onViewDetails }: { tournament: Tournament; onViewDetails: () => void }) {
   const cat = CATEGORIES.find((c) => c.id === t.category);
   const pct = Math.min((t.participantCount / t.maxPlayers) * 100, 100);
-
-  const handleJoin = () => {
-    if (t.roomCode) router.push(`/play/${t.roomCode}`);
-  };
 
   return (
     <div className="relative glass rounded-3xl p-6 sm:p-8 border border-violet-500/30 shadow-glow-purple mb-6 overflow-hidden">
@@ -248,12 +449,7 @@ function FeaturedCard({ tournament: t }: { tournament: Tournament }) {
         </div>
 
         <div className="grid sm:grid-cols-3 gap-4 mb-5">
-          <InfoBlock
-            icon={<PrizeIcon type={t.prizeType} />}
-            label="Prize"
-            value={t.prizeDisplay}
-            highlight={t.prizeType !== "NONE"}
-          />
+          <InfoBlock icon={<PrizeIcon type={t.prizeType} />} label="Prize" value={t.prizeDisplay} highlight={t.prizeType !== "NONE"} />
           <InfoBlock icon={<Users className="w-4 h-4 text-cyan-400" />} label="Players" value={`${t.participantCount}/${t.maxPlayers}`} />
           <InfoBlock icon={<Zap className="w-4 h-4 text-violet-400" />} label="Entry" value={t.entryFee === 0 ? "Free" : `${t.entryFee} RBTC`} />
         </div>
@@ -269,13 +465,9 @@ function FeaturedCard({ tournament: t }: { tournament: Tournament }) {
         </div>
 
         <div className="flex items-center gap-3">
-          <button
-            onClick={handleJoin}
-            disabled={!t.roomCode}
-            className="btn-primary py-3 px-8 gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
+          <button onClick={onViewDetails} className="btn-primary py-3 px-8 gap-2">
             <Star className="w-4 h-4" />
-            Join Now
+            View & Join
             <ChevronRight className="w-4 h-4" />
           </button>
           <span className="text-xs text-slate-500 flex items-center gap-1">
@@ -288,17 +480,12 @@ function FeaturedCard({ tournament: t }: { tournament: Tournament }) {
   );
 }
 
-function TournamentCard({ tournament: t }: { tournament: Tournament }) {
-  const router = useRouter();
+function TournamentCard({ tournament: t, onViewDetails }: { tournament: Tournament; onViewDetails: () => void }) {
   const cat = CATEGORIES.find((c) => c.id === t.category);
   const isLive = t.status === "LIVE";
 
-  const handleJoin = () => {
-    if (t.roomCode) router.push(`/play/${t.roomCode}`);
-  };
-
   return (
-    <div className="glass rounded-2xl p-5 border border-slate-700/50 hover:border-violet-500/30 transition-colors group">
+    <div className="glass rounded-2xl p-5 border border-slate-700/50 hover:border-violet-500/30 transition-colors group flex flex-col gap-4">
       <div className="flex items-start gap-4">
         <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${cat?.gradient || "from-violet-500 to-cyan-500"} flex items-center justify-center text-3xl flex-shrink-0 shadow-lg`}>
           {cat?.emoji ?? "🏆"}
@@ -338,7 +525,7 @@ function TournamentCard({ tournament: t }: { tournament: Tournament }) {
             )}
           </div>
 
-          {/* Countdown or date */}
+          {/* Countdown or live */}
           <div className="mt-2 flex items-center gap-1.5 text-xs">
             {isLive ? (
               <span className="text-emerald-400 font-semibold flex items-center gap-1">
@@ -360,7 +547,8 @@ function TournamentCard({ tournament: t }: { tournament: Tournament }) {
         </div>
       </div>
 
-      <div className="mt-4 flex items-center justify-between">
+      {/* Bottom row */}
+      <div className="flex items-center justify-between pt-1 border-t border-slate-800">
         <span className="text-xs text-slate-500">
           {t.entryFee === 0 ? (
             <span className="text-emerald-400 font-semibold">🆓 Free Entry</span>
@@ -368,23 +556,28 @@ function TournamentCard({ tournament: t }: { tournament: Tournament }) {
             <span>Entry: {t.entryFee} RBTC</span>
           )}
         </span>
-        {isLive && t.roomCode ? (
-          <button
-            onClick={handleJoin}
-            className="flex items-center gap-1.5 text-sm font-semibold text-emerald-400 hover:text-emerald-300 transition-colors group-hover:gap-2"
-          >
-            Join Now
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        ) : (
-          <span className="text-xs text-slate-500 flex items-center gap-1">
-            <Calendar className="w-3 h-3" />
-            {t.scheduledAt
-              ? new Date(t.scheduledAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
-              : "Scheduled"}
-          </span>
-        )}
+        <button
+          onClick={onViewDetails}
+          className={`flex items-center gap-1.5 text-sm font-semibold transition-colors group-hover:gap-2 ${
+            isLive ? "text-emerald-400 hover:text-emerald-300" : "text-violet-400 hover:text-violet-300"
+          }`}
+        >
+          {isLive ? "Join Now" : "View & Join"}
+          <ChevronRight className="w-4 h-4" />
+        </button>
       </div>
+    </div>
+  );
+}
+
+function DetailTile({ icon, label, value, accent }: { icon: React.ReactNode; label: string; value: string; accent?: boolean }) {
+  return (
+    <div className="rounded-xl p-3 bg-dark-800/60 border border-slate-800">
+      <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1">
+        {icon}
+        {label}
+      </div>
+      <div className={`font-bold text-sm ${accent ? "gradient-text" : "text-white"}`}>{value}</div>
     </div>
   );
 }
