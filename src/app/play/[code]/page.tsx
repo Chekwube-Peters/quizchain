@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback, Suspense } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { io, Socket } from "socket.io-client";
 import { Trophy, Flame } from "lucide-react";
 import { formatScore, getRankIcon } from "@/lib/utils";
@@ -39,8 +40,23 @@ function PlayPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { status } = useSession();
   const code = (params.code as string).toUpperCase();
   const nickname = searchParams.get("nickname") || "Player";
+
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.replace(`/auth/signin?callbackUrl=/play`);
+    }
+  }, [status, router]);
+
+  if (status === "loading" || status === "unauthenticated") {
+    return (
+      <div className="min-h-screen bg-dark-900 flex items-center justify-center">
+        <div className="w-10 h-10 rounded-full border-4 border-violet-500 border-t-transparent animate-spin" />
+      </div>
+    );
+  }
 
   const [socket, setSocket] = useState<Socket | null>(null);
   const [phase, setPhase] = useState<GamePhase>("joining");

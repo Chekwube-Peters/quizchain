@@ -1,15 +1,33 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { Play, User, Wallet, ArrowRight, Zap } from "lucide-react";
 import Navbar from "@/components/shared/Navbar";
 
 export default function JoinPage() {
   const router = useRouter();
+  const { data: session, status } = useSession();
   const [code, setCode] = useState("");
   const [nickname, setNickname] = useState("");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (status === "unauthenticated") router.replace("/auth/signin?callbackUrl=/play");
+  }, [status, router]);
+
+  useEffect(() => {
+    if (session?.user?.name) setNickname(session.user.name.split(" ")[0]);
+  }, [session]);
+
+  if (status === "loading" || status === "unauthenticated") {
+    return (
+      <div className="min-h-screen bg-dark-900 flex items-center justify-center">
+        <div className="w-10 h-10 rounded-full border-4 border-violet-500 border-t-transparent animate-spin" />
+      </div>
+    );
+  }
 
   const handleJoin = (e: React.FormEvent) => {
     e.preventDefault();

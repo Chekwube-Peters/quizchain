@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
   Brain,
   PenLine,
@@ -34,7 +35,20 @@ interface ManualQuestion {
 
 export default function CreatePage() {
   const router = useRouter();
+  const { status } = useSession();
   const [step, setStep] = useState<Step>("mode");
+
+  useEffect(() => {
+    if (status === "unauthenticated") router.replace("/auth/signin?callbackUrl=/create");
+  }, [status, router]);
+
+  if (status === "loading" || status === "unauthenticated") {
+    return (
+      <div className="min-h-screen bg-dark-900 flex items-center justify-center">
+        <div className="w-10 h-10 rounded-full border-4 border-violet-500 border-t-transparent animate-spin" />
+      </div>
+    );
+  }
   const [mode, setMode] = useState<"AI_GENERATED" | "MANUAL">("AI_GENERATED");
   const [category, setCategory] = useState<QuizCategory>("BLOCKCHAIN");
   const [customTopic, setCustomTopic] = useState("");
